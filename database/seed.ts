@@ -1,7 +1,7 @@
 import * as dotenv from 'dotenv';
 dotenv.config(); // Load environment variables from .env file
 
-import { PrismaClient, Role } from '../generated/prisma';
+import { PrismaClient, Role } from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
