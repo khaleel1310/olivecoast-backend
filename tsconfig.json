@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "CommonJS",                  // Essential for clean Node.js / ts-node-dev runtime execution
+    "moduleResolution": "bundler",          // Ensures proper resolution of node_modules dependencies
+    "outDir": "./dist",
+    "rootDir": "./",                       // Changes the compilation root to the whole folder
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": [
+    "src/**/*", 
+    "database/**/*",                  // Now allowed because rootDir encompasses the whole project folder!
+    "prisma.config.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
+}
