@@ -36,10 +36,10 @@ export class AuthController {
 
       // 5. Append cookie to response stream
       res.cookie('token', token, {
-        httpOnly: true,                                      // Blocks client-side XSS script reading
-        secure: process.env.NODE_ENV === 'production',       // Forces HTTPS transmission on production
-        sameSite: 'lax',                                     // Protects against CSRF context tampering
-        maxAge: 24 * 60 * 60 * 1000                          // 1 day duration in milliseconds
+        httpOnly: true,     // Blocks client-side XSS script reading
+        secure: true,       // CRITICAL: Required for cross-domain Vercel -> Render
+        sameSite: 'none',   // CRITICAL: Allows the cookie to be sent across different domains
+        maxAge: 24 * 60 * 60 * 1000 // FIXED: Coordinated to exactly 24 hours to match the JWT token lifespan
       });
 
       return res.status(200).json({
@@ -54,22 +54,23 @@ export class AuthController {
       next(error);
     }
   }
-  // POST /api/auth/logout
-static async logout(req: Request, res: Response, next: NextFunction) {
-  try {
-    // Overwrite the cookie with an empty string and expire it immediately
-    res.cookie('token', '', {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'lax',
-      expires: new Date(0) // Sets expiration date to 1970, instantly destroying the cookie
-    });
 
-    return res.status(200).json({
-      message: 'Logged out successfully from Olive Coast Kitchen.'
-    });
-  } catch (error) {
-    next(error);
+  // POST /api/auth/logout
+  static async logout(req: Request, res: Response, next: NextFunction) {
+    try {
+      // Overwrite the cookie with an empty string and expire it immediately
+      res.cookie('token', '', {
+        httpOnly: true,
+        secure: true,       // FIXED: Must match login configurations exactly for cross-domain cleanup
+        sameSite: 'none',   // FIXED: Must match login configurations exactly for cross-domain cleanup
+        expires: new Date(0) // Sets expiration date to 1970, instantly destroying the cookie
+      });
+
+      return res.status(200).json({
+        message: 'Logged out successfully from Olive Coast Kitchen.'
+      });
+    } catch (error) {
+      next(error);
+    }
   }
-}
 }

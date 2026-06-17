@@ -1,4 +1,5 @@
 import { prisma } from '../prisma/client';
+import { Role, OrderStatus } from '@prisma/client';
 
 interface OrderItemInput {
   menuItemId: string;
@@ -14,14 +15,17 @@ interface CreateOrderInput {
 }
 
 export class OrderService {
+  /**
+   * 1. Public Order Placement Intake
+   * Uses an isolated database transaction to ensure sequential number generation
+   */
   static async createCustomerOrder(data: CreateOrderInput) {
     if (!data.items || data.items.length === 0) {
       throw new Error('An order must contain at least one item.');
     }
 
-    // Wrap the entire process in a robust database transaction
     return await prisma.$transaction(async (tx) => {
-      // 1. Generate the sequential order number (e.g., ORD-001)
+      // Generate the sequential order number (e.g., ORD-001)
       const lastOrder = await tx.order.findFirst({
         orderBy: { createdAt: 'desc' },
         select: { orderNumber: true }
@@ -36,7 +40,7 @@ export class OrderService {
       }
       const formattedOrderNumber = `ORD-${String(nextNumber).padStart(3, '0')}`;
 
-      // 2. Resolve and validate all menu items to calculate totals safely
+      // Resolve and validate all menu items to calculate totals safely
       let runningTotal = 0;
       const detailedOrderItems = [];
 
@@ -65,7 +69,7 @@ export class OrderService {
         });
       }
 
-      // 3. Persist the Order and its child line items to PostgreSQL
+      // Persist the Order and its child line items to PostgreSQL
       return await tx.order.create({
         data: {
           orderNumber: formattedOrderNumber,
@@ -74,7 +78,7 @@ export class OrderService {
           deliveryAddress: data.deliveryAddress,
           notes: data.notes,
           total: runningTotal,
-          status: 'PENDING',
+          status: OrderStatus.PENDING,
           items: {
             create: detailedOrderItems
           }
@@ -87,29 +91,31 @@ export class OrderService {
   }
 
   /**
-   * Fetches dashboard orders based on the staff role.
-   * OWNER sees every order history record.
-   * CHEF only sees incoming PENDING tickets.
+   * 2. Role-Based Dashboard Filtering Context
+   * OWNER sees every single order in history.
+   * CHEF sees active live-kitchen tickets (PENDING, PREPARING, READY) so they don't disappear.
    */
-  static async getOrdersByRole(role: 'OWNER' | 'CHEF') {
-    const filterCondition = role === 'CHEF' ? { status: 'PENDING' as const } : {};
+  static async getOrdersByRole(role: Role) {
+    const filterCondition = role === Role.CHEF 
+      ? { status: { in: [OrderStatus.PENDING, OrderStatus.PREPARING, OrderStatus.READY] } } 
+      : {};
 
     return await prisma.order.findMany({
       where: filterCondition,
       include: {
-        items: true // Includes the breakdown of individual quantities and items ordered
+        items: true 
       },
       orderBy: {
-        createdAt: 'desc' // Newest tickets show up at the top
+        createdAt: role === Role.CHEF ? 'asc' : 'desc' // FIFO (First In, First Out) for Chefs; newest first for Owner
       }
     });
   }
+
   /**
-   * Updates an order status from PENDING to COMPLETED.
-   * Enforces validation to ensure the order exists before updating.
+   * 3. Ticket Resolution Pipeline (Chef Action)
    */
   static async markOrderAsCompleted(orderId: string) {
-    // 1. Verify the order exists first
+    // Verify the order exists first
     const existingOrder = await prisma.order.findUnique({
       where: { id: orderId }
     });
@@ -118,12 +124,15 @@ export class OrderService {
       throw new Error(`Order with ID ${orderId} not found.`);
     }
 
-    // 2. Perform the atomic update status flip
+    if (existingOrder.status === OrderStatus.COMPLETED) {
+      throw new Error('This order ticket has already been finalized.');
+    }
+
+    // Perform the atomic status update
     return await prisma.order.update({
       where: { id: orderId },
-      data: { status: 'COMPLETED' }, // Flips the enum state cleanly
+      data: { status: OrderStatus.COMPLETED }, 
       include: { items: true }
     });
   }
-  
 }
