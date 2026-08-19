@@ -1,114 +1,147 @@
-import * as dotenv from 'dotenv';
-dotenv.config(); // Load environment variables from .env file
+// database/seed.ts — MUST BE ON LINE 1
+process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
 
-import { PrismaClient, Role } from '@prisma/client';
-import * as bcrypt from 'bcrypt';
+import { PrismaClient, Prisma } from '@prisma/client';
 import { PrismaPg } from '@prisma/adapter-pg';
 import { Pool } from 'pg';
+import bcrypt from 'bcrypt';
+import dotenv from 'dotenv';
 
-// 1. Point directly to the exact DATABASE_URL from your active .env file
+dotenv.config();
+
 const pool = new Pool({
-  connectionString: process.env.DATABASE_URL, // 👈 Dynamically uses your real working database!
+  connectionString: process.env.DATABASE_URL,
+  ssl: { rejectUnauthorized: false },
 });
 
-// 2. Wrap it inside Prisma 7's required Driver Adapter
 const adapter = new PrismaPg(pool);
-
-// 3. Pass the adapter straight into the constructor
 const prisma = new PrismaClient({ adapter });
 
 async function main() {
-  console.log('Starting database seeding...');
+  console.log('🌱 Seeding V2 catering database...');
 
-  // 1. Clean out existing records to avoid duplicate key errors during local development
-  // We use a raw query with CASCADE to cleanly wipe tables in a specific relational order
-  await prisma.$executeRawUnsafe(`TRUNCATE TABLE "User", "Category", "MenuItem", "Order", "OrderItem" CASCADE;`);
-  console.log(' Cleaned existing database tables.');
+  // ── Users ──────────────────────────────────────────────────────
+  const owners = [
+    { email: 'owner@olivecoast.com', name: 'Owner', password: 'Zaid19$' },
+    { email: 'laura@olivecoast.com', name: 'Laura', password: 'Laura84' },
+  ];
 
-  // 2. Hash default password for development accounts
-  const saltRounds = 10;
-  const hashedDevPassword = await bcrypt.hash('password123', saltRounds);
+  for (const owner of owners) {
+    const hashedPassword = await bcrypt.hash(owner.password, 12);
+    await prisma.user.upsert({
+      where: { email: owner.email },
+      update: { password: hashedPassword, role: 'OWNER' },
+      create: {
+        email: owner.email,
+        name: owner.name,
+        password: hashedPassword,
+        role: 'OWNER',
+      },
+    });
+  }
 
-  // 3. Seed Users (Owner and Chef roles)
-  const owner = await prisma.user.create({
-    data: {
-      email: 'owner@olivecoast.com',
-      password: hashedDevPassword,
-      role: Role.OWNER,
-    },
-  });
-
-  const chef = await prisma.user.create({
-    data: {
+  // Default CHEF user
+  const chefPassword = await bcrypt.hash('Chef123!', 12);
+  await prisma.user.upsert({
+    where: { email: 'chef@olivecoast.com' },
+    update: {},
+    create: {
       email: 'chef@olivecoast.com',
-      password: hashedDevPassword,
-      role: Role.CHEF,
+      name: 'Chef',
+      password: chefPassword,
+      role: 'CHEF',
     },
   });
+  console.log('✅ Users created');
 
-  console.log('Standard users seeded successfully.');
+  // ── Packages ───────────────────────────────────────────────────
+  const packages = [
+    {
+      name: 'Classic Collection',
+      pricePerPerson: new Prisma.Decimal(39.95),
+      sortOrder: 1,
+      description: 'Elegant catering for any occasion — perfect balance of quality and value.',
+      includedItems: JSON.stringify({
+        hors_doeuvres: ['Bruschetta', 'Spanakopita'],
+        salad: ['Greek Salad'],
+        entrees: ['Herb-Roasted Chicken', 'Chicken Parmesan'],
+        sides: ['Garlic Mashed Potatoes', 'Roasted Seasonal Vegetables'],
+        vegetarian: ['Eggplant Parmesan'],
+        desserts: ['Classic Cheesecake', 'Baklava'],
+        included: ['Bread & Butter', 'Sauces & Garnishes'],
+      }),
+    },
+    {
+      name: 'Signature Collection',
+      pricePerPerson: new Prisma.Decimal(54.95),
+      sortOrder: 2,
+      description: 'Premium ingredients and refined presentation for your most memorable events.',
+      includedItems: JSON.stringify({
+        hors_doeuvres: ['Shrimp Cocktail', 'Smoked Salmon Crostini', 'Arancini'],
+        salad: ['Burrata Caprese'],
+        entrees: ['Chicken Marsala', 'Braised Short Rib'],
+        italian: ['Wild Mushroom Risotto'],
+        sides: ['Truffle Mashed Potatoes', 'Grilled Asparagus'],
+        vegetarian: ['Vegetarian Moussaka'],
+        desserts: ['Tiramisu', 'Cannoli', 'Baklava'],
+        included: ['Artisan Bread', 'Signature Sauces & Garnishes'],
+      }),
+    },
+    {
+      name: 'Luxury Collection',
+      pricePerPerson: new Prisma.Decimal(74.95),
+      sortOrder: 3,
+      description: 'An extraordinary fine dining experience — the pinnacle of upscale catering.',
+      includedItems: JSON.stringify({
+        hors_doeuvres: ['Beef Wellington Bites', 'Jumbo Shrimp Cocktail', 'Smoked Salmon Crostini', 'Truffle Arancini'],
+        salad: ['Burrata & Heirloom Tomato'],
+        entrees: ['Choice of 2: Filet Mignon, Grilled Salmon, Braised Short Rib, Chicken Roulade'],
+        italian: ['Choice of 1: Lobster Ravioli, Truffle Risotto, Wild Mushroom Ravioli'],
+        greek: ['Choice of 1: Greek Lemon Potatoes, Mediterranean Orzo, Beef Tenderloin Souvlaki'],
+        sides: ['Truffle Mashed Potatoes', 'Grilled Asparagus'],
+        vegetarian: ['Truffle Wild Mushroom Risotto'],
+        desserts: ['Crème Brûlée', 'Tiramisu', 'Chocolate Ganache Tart'],
+        included: ['Artisan Bread', 'Luxury Sauces & Garnishes'],
+      }),
+    },
+  ];
 
-  // 4. Seed Menu Categories
-  const starters = await prisma.category.create({
-    data: { name: 'Starters & Appetizers', sortOrder: 1 },
-  });
+  for (const pkg of packages) {
+    await prisma.package.upsert({
+      where: { name: pkg.name },
+      update: pkg,
+      create: pkg,
+    });
+  }
+  console.log('✅ Packages created');
 
-  const mains = await prisma.category.create({
-    data: { name: 'Main Platters', sortOrder: 2 },
-  });
+  // ── Add-ons ────────────────────────────────────────────────────
+  const addons = [
+    { name: 'Filet Mignon Upgrade', pricePerPerson: new Prisma.Decimal(8.00), sortOrder: 1, description: 'Upgrade to premium Filet Mignon per guest' },
+    { name: 'Lobster Upgrade', pricePerPerson: new Prisma.Decimal(10.00), sortOrder: 2, description: 'Add Lobster Ravioli or Lobster entrée per guest' },
+    { name: 'Lamb Chop Upgrade', pricePerPerson: new Prisma.Decimal(7.00), sortOrder: 3, description: 'Add Grilled Lamb Chops per guest' },
+    { name: 'Additional Entrée', pricePerPerson: new Prisma.Decimal(8.00), sortOrder: 4, description: 'Add one more entrée selection per guest' },
+    { name: "Additional Hors d'oeuvre", pricePerPerson: new Prisma.Decimal(4.00), sortOrder: 5, description: "Add one more hors d'oeuvre per guest" },
+    { name: 'Premium Dessert', pricePerPerson: new Prisma.Decimal(4.00), sortOrder: 6, description: 'Add a premium dessert selection per guest' },
+  ];
 
-  const desserts = await prisma.category.create({
-    data: { name: 'Desserts', sortOrder: 3 },
-  });
-
-  console.log(' Menu categories created.');
-
-  // 5. Seed Menu Items linked to those Categories
-  await prisma.menuItem.createMany({
-    data: [
-      {
-        categoryId: starters.id,
-        name: 'Hummus with Meat',
-        description: 'Smooth blended chickpeas topped with warm spiced minced meat and pine nuts.',
-        price: 4.50,
-      },
-      {
-        categoryId: starters.id,
-        name: 'Kubbeh',
-        description: 'Crispy cracked wheat shells filled with seasoned minced beef and onions (4 pieces).',
-        price: 5.00,
-      },
-      {
-        categoryId: mains.id,
-        name: 'Traditional Mansaf',
-        description: 'Tender lamb cooked in a rich, tangy jameed broth, served over rice with shrak bread.',
-        price: 14.50,
-      },
-      {
-        categoryId: mains.id,
-        name: 'Mixed Grill Platter',
-        description: 'A combination of shish taouk, kebab, and beef tenderloin skewers served with grilled vegetables.',
-        price: 16.00,
-      },
-      {
-        categoryId: desserts.id,
-        name: 'Knafeh',
-        description: 'Warm, cheesy pastry soaked in sweet orange-blossom syrup, topped with crushed pistachios.',
-        price: 4.00,
-      },
-    ],
-  });
-
-  console.log('Menu items populated.');
-  console.log('Database seeding completed beautifully!');
+  for (const addon of addons) {
+    await prisma.addon.upsert({
+      where: { name: addon.name },
+      update: addon,
+      create: addon,
+    });
+  }
+  console.log('✅ Add-ons created');
+  console.log('🎉 V2 seed complete');
 }
 
 main()
   .catch((e) => {
-    console.error(' Error executing the seed file:', e);
+    console.error(e);
     process.exit(1);
   })
   .finally(async () => {
-    // Disconnect Prisma Client when finished to free up the database connection pool
     await prisma.$disconnect();
+    await pool.end();
   });

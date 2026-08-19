@@ -1,10 +1,13 @@
+// src/app.ts
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import cookieParser from 'cookie-parser';
+
+// Route Imports
 import authRoutes from './routes/auth.routes';
-import menuRoutes from './routes/menu.routes';
-import orderRoutes from './routes/order.routes';
+import packagesRoutes from './routes/packages.routes';
+import bookingsRoutes from './routes/bookings.routes';
 
 const app = express();
 
@@ -24,6 +27,7 @@ app.get('/health', (req, res) => {
 
 // 3. Register Application Routes
 app.use('/api/auth', authRoutes); // Sets up /api/auth/login and /api/auth/logout
-app.use('/api/menu', menuRoutes); // Sets up /api/menu
-app.use('/api/orders', orderRoutes); // <-- Mount /api/orders path here
+app.use('/api/packages', packagesRoutes);
+app.use('/api/bookings', bookingsRoutes);
+
 export default app;

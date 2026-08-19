@@ -10,13 +10,6 @@ enum Role {
   CHEF
 }
 
-enum OrderStatus {
-  PENDING
-  PREPARING
-  READY
-  COMPLETED
-}
-
 model User {
   id        String   @id @default(uuid())
   email     String   @unique
@@ -26,49 +19,63 @@ model User {
   createdAt DateTime @default(now())
 }
 
-model Category {
-  id        String     @id @default(uuid())
-  name      String
-  sortOrder Int        @default(0)
-  isActive  Boolean    @default(true)
-  items     MenuItem[]
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+model Package {
+  id               String    @id @default(uuid())
+  name             String    @unique
+  pricePerPerson   Decimal   @db.Decimal(10, 2)
+  description      String?
+  includedItems    String    @db.Text
+  isActive         Boolean   @default(true)
+  sortOrder        Int       @default(0)
+  bookings         Booking[]
+  createdAt        DateTime  @default(now())
 }
 
-model MenuItem {
-  id          String      @id @default(uuid())
-  categoryId  String
-  category    Category    @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  name        String
-  description String?
-  price       Decimal     @db.Decimal(10, 2)
-  imageUrl    String?
-  isAvailable Boolean     @default(true)
-  createdAt   DateTime    @default(now())
-  orderItems  OrderItem[]
+model Addon {
+  id             String         @id @default(uuid())
+  name           String         @unique
+  pricePerPerson Decimal        @db.Decimal(10, 2)
+  description    String?
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  bookingAddons  BookingAddon[]
+  createdAt      DateTime       @default(now())
 }
 
-model Order {
-  id           String      @id @default(uuid())
-  orderNumber  String      @unique // Format: ORD-001, ORD-002
-  customerName String
-  phoneNumber     String      
-  deliveryAddress String      
-  status       OrderStatus @default(PENDING)
-  total        Decimal     @db.Decimal(10, 2)
-  notes        String?
-  createdAt    DateTime    @default(now())
-  updatedAt    DateTime    @updatedAt
-  items        OrderItem[]
+model Booking {
+  id              String         @id @default(uuid())
+  bookingNumber   String         @unique
+  packageId       String
+  package         Package        @relation(fields: [packageId], references: [id])
+  guestCount      Int
+  eventDate       DateTime
+  eventLocation   String
+  customerName    String
+  customerEmail   String?
+  customerPhone   String
+  packageTotal    Decimal        @db.Decimal(10, 2)
+  addonsTotal     Decimal        @default(0) @db.Decimal(10, 2)
+  grandTotal      Decimal        @db.Decimal(10, 2)
+  status          BookingStatus  @default(PENDING)
+  notes           String?
+  addons          BookingAddon[]
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
-model OrderItem {
-  id         String   @id @default(uuid())
-  orderId    String
-  order      Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  menuItemId String
-  menuItem   MenuItem @relation(fields: [menuItemId], references: [id])
-  itemName   String // Snapshot for auditing if historical menu changes
-  itemPrice  Decimal  @db.Decimal(10, 2) // Snapshot
-  quantity   Int
-  subtotal   Decimal  @db.Decimal(10, 2)
+model BookingAddon {
+  id        String  @id @default(uuid())
+  bookingId String
+  booking   Booking @relation(fields: [bookingId], references: [id], onDelete: Cascade)
+  addonId   String
+  addon     Addon   @relation(fields: [addonId], references: [id])
+  quantity  Int     @default(1)
+  subtotal  Decimal @db.Decimal(10, 2)
 }
