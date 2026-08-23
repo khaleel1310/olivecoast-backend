@@ -104,6 +104,34 @@ async function main() {
         included: ['Artisan Bread', 'Luxury Sauces & Garnishes'],
       }),
     },
+    {
+      name: 'Vegetarian Package',
+      pricePerPerson: new Prisma.Decimal(42.95),
+      sortOrder: 4,
+      description: 'A vibrant plant-based culinary journey full of rich Mediterranean flavors.',
+      includedItems: JSON.stringify({
+        appetizers: ['Falafel Bites', 'Stuffed Grape Leaves'],
+        salad: ['Tabbouleh'],
+        entrees: ['Eggplant Moussaka', 'Stuffed Bell Peppers with Quinoa'],
+        sides: ['Lemon Herb Couscous', 'Roasted Zucchini'],
+        desserts: ['Vegan Fruit Tart'],
+        included: ['Artisan Bread & Olive Oil', 'Herbs & Garnishes'],
+      }),
+    },
+    {
+      name: 'Arabic Package',
+      pricePerPerson: new Prisma.Decimal(49.95),
+      sortOrder: 5,
+      description: 'Traditional Middle Eastern feast with authentic spices and rich heritage dishes.',
+      includedItems: JSON.stringify({
+        appetizers: ['Mutabbal', 'Kebbeh', 'Sambusa'],
+        salad: ['Arabic Salad with Tahini'],
+        entrees: ['Lamb Mandi', 'Chicken Shish Tawook'],
+        sides: ['Vermicelli Rice', 'Grilled Tomatoes and Onions'],
+        desserts: ['Aish El Saraya', 'Kunafa'],
+        included: ['Arabic Bread', 'Traditional Garnishes'],
+      }),
+    },
   ];
 
   for (const pkg of packages) {
@@ -113,7 +141,7 @@ async function main() {
       create: pkg,
     });
   }
-  console.log('✅ Packages created');
+  console.log('✅ Packages created (including Vegetarian & Arabic)');
 
   // ── Add-ons ────────────────────────────────────────────────────
   const addons = [
@@ -133,6 +161,25 @@ async function main() {
     });
   }
   console.log('✅ Add-ons created');
+
+  // ── Drinks ─────────────────────────────────────────────────────
+  const drinks = [
+    { name: 'Fresh Mint Lemonade', pricePerPerson: new Prisma.Decimal(4.50), sortOrder: 1, description: 'Hand-crafted refreshing mint lemonade' },
+    { name: 'Mint Tea', pricePerPerson: new Prisma.Decimal(3.50), sortOrder: 2, description: 'Traditional hot brewed green tea with fresh mint' },
+    { name: 'Arabic Coffee (Qahwa)', pricePerPerson: new Prisma.Decimal(4.00), sortOrder: 3, description: 'Authentic cardamom-infused traditional coffee' },
+    { name: 'Turkish Coffee', pricePerPerson: new Prisma.Decimal(4.00), sortOrder: 4, description: 'Rich and finely ground traditional dark roast coffee' },
+    { name: 'American Coffee', pricePerPerson: new Prisma.Decimal(3.50), sortOrder: 5, description: 'Smooth and classic brewed drip coffee' },
+    { name: 'Assorted Soft Drinks & Juices', pricePerPerson: new Prisma.Decimal(3.00), sortOrder: 6, description: 'Selection of sodas and chilled juices' },
+];
+  for (const drink of drinks) {
+    await prisma.drink.upsert({
+      where: { name: drink.name },
+      update: drink,
+      create: drink,
+    });
+  }
+  console.log('✅ Drinks created');
+
   console.log('🎉 V2 seed complete');
 }
 

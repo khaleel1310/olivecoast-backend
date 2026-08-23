@@ -16,6 +16,13 @@ export const getAddons = async (req: Request, res: Response, next: NextFunction)
   } catch (err) { next(err); }
 };
 
+export const getDrinks = async (req: Request, res: Response, next: NextFunction) => {
+  try {
+    const drinks = await svc.getDrinks();
+    res.json({ success: true, data: drinks });
+  } catch (err) { next(err); }
+};
+
 export const updatePackage = async (req: Request, res: Response, next: NextFunction) => {
   try {
     const { id } = req.params;
