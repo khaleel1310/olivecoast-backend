@@ -9,7 +9,6 @@ const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '', {
 export const createBooking = async (data: any) => {
   const { 
     packageId, 
-    guestCount, 
     addons, 
     drinks, 
     eventDate, 
@@ -22,7 +21,8 @@ export const createBooking = async (data: any) => {
   } = data;
 
   // 1. Enforce minimum guest count (20 guests)
-  if (!guestCount || guestCount < 20) {
+  const guestCount = Number(data.guestCount);
+  if (isNaN(guestCount) || guestCount < 20) {
     throw new Error('Minimum guest requirement is 20 guests.');
   }
 
