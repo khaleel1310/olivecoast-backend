@@ -5,7 +5,16 @@ import { authMiddleware } from '../middleware/auth.middleware';
 
 const router = Router();
 
-router.post('/', ctrl.createBooking);                    // public
+// Wrap createBooking to pass req.body instead of the req object
+router.post('/', async (req, res) => {
+  try {
+    const result = await ctrl.createBooking(req.body);
+    return res.status(201).json(result);
+  } catch (error: any) {
+    return res.status(500).json({ error: error.message || 'Internal server error' });
+  }
+});
+
 router.get('/', authMiddleware, ctrl.getBookings);      // owner/chef
 router.get('/:id', authMiddleware, ctrl.getBooking);      // owner/chef
 
