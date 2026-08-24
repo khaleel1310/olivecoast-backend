@@ -18,7 +18,7 @@ export const createBooking = async (data: any) => {
     customerEmail, 
     customerPhone, 
     notes,
-    tipPercentage = 0 // e.g. 0, 0.025, 0.05, 0.075
+    tipPercentage = 0 
   } = data;
 
   // 1. Enforce minimum guest count (20 guests)
@@ -70,56 +70,22 @@ export const createBooking = async (data: any) => {
     }
   }
 
-  // 5. Financial & Fee Calculations
+  // 5. Financial & Fee Calculations (rounded to 2 decimal places to avoid floating-point issues)
   const foodAndDrinksSubtotal = packageTotal + addonsTotal + drinksTotal;
-  
-  // Service fee is 10% of food/drinks subtotal (excluding delivery)
-  const serviceFee = foodAndDrinksSubtotal * 0.10;
-  const deliveryFee = 100.00; // Fixed delivery fee
+  const serviceFee = Number((foodAndDrinksSubtotal * 0.10).toFixed(2));
+  const deliveryFee = 100.00;
 
-  // Subtotal before tax including fees
   const subtotalWithExtras = foodAndDrinksSubtotal + serviceFee + deliveryFee;
+  const taxAmount = Number((subtotalWithExtras * 0.08).toFixed(2)); 
+  const tipAmount = Number((subtotalWithExtras * tipPercentage).toFixed(2)); 
   
-  // Tax (8%) applies to food, drinks, service fee, and delivery fee
-  const taxAmount = subtotalWithExtras * 0.08; 
-  
-  // Tip calculation
-  const tipAmount = subtotalWithExtras * tipPercentage; 
-  
-  // Grand Total after tax & tips
-  const grandTotal = subtotalWithExtras + taxAmount + tipAmount; 
-  const downPayment = grandTotal * 0.25; // 25% Down Payment
+  const grandTotal = Number((subtotalWithExtras + taxAmount + tipAmount).toFixed(2)); 
+  const downPayment = Number((grandTotal * 0.25).toFixed(2));
 
   // Generate unique booking number
   const bookingNumber = `BK-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
 
-  // 6. Create Stripe Checkout Session for the 25% Down Payment
-  const session = await stripe.checkout.sessions.create({
-    payment_method_types: ['card'],
-    line_items: [
-      {
-        price_data: {
-          currency: 'usd',
-          product_data: {
-            name: `25% Down Payment - Olive Coast Catering (${bookingNumber})`,
-            description: `Event Date: ${new Date(eventDate).toLocaleDateString()} | Grand Total: $${grandTotal.toFixed(2)}`,
-          },
-          unit_amount: Math.round(downPayment * 100), // Stripe expects amounts in cents
-        },
-        quantity: 1,
-      },
-    ],
-    mode: 'payment',
-    success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/cancel`,
-    metadata: {
-      bookingNumber,
-      customerName,
-      customerPhone,
-    },
-  });
-
-  // 7. Save to Database using official BookingStatus enum
+  // 6. Save to Database FIRST to prevent orphaned Stripe sessions
   const newBooking = await prisma.booking.create({
     data: {
       bookingNumber,
@@ -151,10 +117,44 @@ export const createBooking = async (data: any) => {
     }
   });
 
-  return {
-    ...newBooking,
-    checkoutUrl: session.url
-  };
+  try {
+    // 7. Create Stripe Checkout Session AFTER successful DB record creation
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: 'usd',
+            product_data: {
+              name: `25% Down Payment - Olive Coast Catering (${bookingNumber})`,
+              description: `Event Date: ${new Date(eventDate).toLocaleDateString()} | Grand Total: $${grandTotal.toFixed(2)}`,
+            },
+            unit_amount: Math.round(downPayment * 100),
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      success_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/success?session_id={CHECKOUT_SESSION_ID}`,
+      cancel_url: `${process.env.FRONTEND_URL || 'http://localhost:5173'}/cancel`,
+      metadata: {
+        bookingNumber: String(bookingNumber),
+        customerName: String(customerName || ''),
+        customerPhone: String(customerPhone || ''),
+      },
+    });
+
+    return {
+      ...newBooking,
+      checkoutUrl: session.url
+    };
+  } catch (stripeError: unknown) {
+  if (stripeError instanceof Error) {
+    throw new Error(`Stripe checkout creation failed: ${stripeError.message}`);
+  } else {
+    throw new Error('Stripe checkout creation failed: Unknown error occurred');
+  }
+}
 };
 
 export const getBookings = async (status?: string) => {
